@@ -4,6 +4,7 @@ const baseURL = "http://127.0.0.1:3100";
 
 export default defineConfig({
   testDir: "./tests",
+  testMatch: "**/*.spec.ts",
   forbidOnly: Boolean(process.env.CI),
   workers: process.env.CI ? 2 : undefined,
   use: {

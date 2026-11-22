@@ -1,16 +1,11 @@
-export const categories = {
-  all: { label: "すべて", query: "" },
-  animals: { label: "動物", query: "(猫 OR 犬 OR 動物)" },
-  daily: { label: "日常・風景", query: "(風景 OR 日常 OR 街歩き)" },
-  food: { label: "グルメ", query: "(グルメ OR 料理 OR レシピ)" },
-  sports: { label: "スポーツ", query: "(スポーツ OR スケボー OR バスケ)" },
-  music: { label: "音楽", query: "(音楽 OR ライブ OR 弾き語り)" },
-} as const;
+import { categories, hourMs, normalizeSearch, type Category, type LiveRanking, type LiveVideo } from "../lib/ranking-model";
+import type { ManualVideo } from "./manual-posts";
 
-export type Category = keyof typeof categories;
-export type Period = 24 | 72 | 168;
+export { categories };
+export type { Category, Period } from "../lib/ranking-model";
 
-export type Video = {
+type SampleVideo = {
+  kind?: "sample";
   id: string;
   tile: number;
   category: Exclude<Category, "all">;
@@ -22,7 +17,16 @@ export type Video = {
   views: number;
 };
 
-export const videos: Video[] = [
+type PublishedVideo = LiveVideo & {
+  kind: "x";
+  title: string;
+  duration: string | null;
+  hours: number;
+};
+
+export type Video = SampleVideo | PublishedVideo | ManualVideo;
+
+export const videos: SampleVideo[] = [
   {
     id: "cat",
     tile: 0,
@@ -126,6 +130,26 @@ export const videos: Video[] = [
 
 export const videosById = new Map(videos.map((video) => [video.id, video]));
 
+export function publishedVideos(ranking: LiveRanking): PublishedVideo[] {
+  if (!ranking.updatedAt) return [];
+  const asOf = Date.parse(ranking.updatedAt);
+  return ranking.videos.map((video) => {
+    const seconds = video.durationMs == null ? null : Math.ceil(video.durationMs / 1000);
+    const duration = seconds == null ? null : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    return {
+      ...video,
+      kind: "x",
+      title: `${categories[video.category].label}の動画`,
+      duration,
+      hours: (asOf - Date.parse(video.createdAt)) / hourMs,
+    };
+  });
+}
+
+export function score(video: Exclude<Video, ManualVideo>) {
+  return video.kind === "x" ? video.count : video.views;
+}
+
 export function xSearch(topic = "") {
   const url = new URL("https://x.com/search");
   url.searchParams.set("q", [topic.trim(), "filter:videos", "lang:ja"].filter(Boolean).join(" "));
@@ -133,18 +157,16 @@ export function xSearch(topic = "") {
   return url.href;
 }
 
-function normalize(value: string) {
-  return value.normalize("NFKC").trim().toLocaleLowerCase("ja");
-}
-
-export function filterVideos(source: Video[], category: Category, query: string) {
-  const terms = normalize(query).split(/\s+/);
+export function filterVideos(source: Video[], category: Category, query: string, matchedPosts?: ReadonlySet<string>) {
+  const terms = normalizeSearch(query).split(/\s+/);
   return source
     .map((video, index) => ({ video, rank: index + 1 }))
     .filter(({ video }) => {
       if (category !== "all" && category !== video.category) return false;
-      const text = normalize([
-        video.title, video.search, video.description, categories[video.category].label,
+      if (video.kind === "x") return terms[0] === "" || Boolean(matchedPosts?.has(video.id));
+      const text = normalizeSearch([
+        video.title, video.kind === "manual" ? video.account : video.search,
+        video.description, categories[video.category].label,
       ].join(" "));
       return terms.every((term) => text.includes(term));
     });

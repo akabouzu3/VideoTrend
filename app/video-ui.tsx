@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { postUrl } from "../lib/ranking-model";
 import { xSearch } from "./video-data";
 
 const glyphs = {
@@ -32,10 +33,14 @@ export function Icon({ name, className = "size-4" }: {
   );
 }
 
-export function Brand({ compact = false, onNavigate }: { compact?: boolean; onNavigate: () => void }) {
+export function Brand({ compact = false, href = "/", onNavigate }: {
+  compact?: boolean;
+  href?: "/" | "/manual";
+  onNavigate: () => void;
+}) {
   return (
     <Link
-      href="/"
+      href={href}
       aria-label="VideoTrend ホーム"
       scroll={false}
       onNavigate={onNavigate}
@@ -53,7 +58,7 @@ export function Brand({ compact = false, onNavigate }: { compact?: boolean; onNa
   );
 }
 
-export function Hero() {
+export function Hero({ manual = false }: { manual?: boolean }) {
   return (
     <section
       aria-labelledby="headline"
@@ -61,13 +66,14 @@ export function Hero() {
     >
       <div className="relative z-10">
         <span className="inline-flex items-center gap-2 rounded-full border border-[#f2cbd9] bg-[#fff9fb] px-2.5 py-1 text-sm font-bold text-[#aa2450]">
-          <Icon name="trend" />Xの動画ランキング
+          <Icon name="trend" />{manual ? "Xの手選び動画" : "Xの動画ランキング"}
         </span>
         <h1 id="headline" className="mt-3 mb-3.5 text-[clamp(2rem,4.4vw,3.6rem)] leading-[1.14] font-black tracking-[-0.065em] max-[600px]:text-[clamp(1.85rem,7.5vw,2.75rem)]">
-          いま話題の動画を、<br /><span className="text-accent">ひと目で。</span>
+          {manual ? "Xで見つけた動画を、" : "いま話題の動画を、"}<br /><span className="text-accent">ひと目で。</span>
         </h1>
         <p className="text-base font-medium text-muted max-[600px]:text-[0.9375rem]">
-          X（旧Twitter）で注目を集める動画を、<br className="hidden max-[600px]:inline" />ランキングから見つけよう。
+          {manual ? "手選びした公開投稿を、ジャンルやキーワードから探せます。"
+            : <>X（旧Twitter）で注目を集める動画を、<br className="hidden max-[600px]:inline" />ランキングから見つけよう。</>}
         </p>
       </div>
       <div
@@ -91,15 +97,23 @@ export function Hero() {
 }
 
 export function XSearchLink({ topic }: { topic: string }) {
+  return <XLink href={xSearch(topic)}>関連動画をXで探す</XLink>;
+}
+
+export function XPostLink({ id, account }: { id: string; account?: string }) {
+  return <XLink href={postUrl(id, account)}>Xで元投稿を開く</XLink>;
+}
+
+function XLink({ href, children }: { href: string; children: string }) {
   return (
     <a
-      href={xSearch(topic)}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center justify-center gap-2 rounded-[9px] border border-[#efcdd9] px-3.5 py-2 text-sm font-bold text-accent hover:bg-blush"
     >
       <span className="text-[1.05rem] leading-none text-ink" aria-hidden="true">𝕏</span>
-      関連動画をXで探す
+      {children}
       <Icon name="external" />
     </a>
   );

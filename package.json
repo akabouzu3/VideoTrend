@@ -11,22 +11,39 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:data": "node --conditions=react-server --import tsx --test tests/data/ranking-job.test.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "x:probe": "node --import tsx scripts/probe-x.ts"
   },
   "dependencies": {
+    "@sentry/nextjs": "^11.16.0",
+    "drizzle-orm": "^0.45.4",
     "next": "16.4.6",
+    "postgres": "^4.1.1",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@next/env": "16.4.6",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9.0.0",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "^4.1.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    }
   }
 }
