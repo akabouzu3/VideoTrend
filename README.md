@@ -24,7 +24,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory dist
 
 ### Next.js版の開発環境
 
-Next.js版のトップページは [`app/`](app/) にあります。ランキングと絞り込み、保存の移植はセクション2で進めます。
+Next.js版のコードは [`app/`](app/) にあります。サンプルデータで期間別ランキング、ジャンル・キーワード絞り込み、「あとで見る」、動画詳細を試せます。
 
 nvmを使う場合は、リポジトリのルートから次のコマンドを実行します。`nvm install` と `nvm use` は [`.nvmrc`](.nvmrc) を参照します。nvmを使わない場合は、Node.js 24系を用意して `npm ci` から実行します。起動後は [http://localhost:3000](http://localhost:3000) を開きます。
 
@@ -35,22 +35,96 @@ npm ci
 npm run dev
 ```
 
-ローカルでは `.nvmrc`、Vercelでは `package.json` の `engines.node` でNode.js 24系を指定します。GitHub Actionsを導入する際も `.nvmrc` を参照します。
+ローカルとGitHub Actionsは `.nvmrc`、Vercelは `package.json` の `engines.node` でNode.js 24系を指定します。
+
+### X APIなしで手選び動画を試す
+
+開発サーバーの [http://localhost:3000/manual](http://localhost:3000/manual) で、サイト内で視聴できるXの動画付き投稿を試せます。サムネイルを押すとモーダルが開き、X公式プレーヤーの再生ボタンでその場で視聴できます。サイト内で再生できる動画ファイルを登録した場合は消音で再生が始まります。「前の動画」「次の動画」ボタンや、その周辺の横スワイプで、絞り込み後の一覧順に移動できます。X APIキーやデータベースは不要です。
+
+一覧は投稿日が新しい順で、既定は全期間です。24時間・3日間・1週間は、一覧の最新投稿日を基準に絞り込みます。トップページも手選び版にする場合は、`.env.local` を `RANKING_SOURCE=manual` にして開発サーバーを再起動します。
+
+動画の追加や差し替えは [`app/manual-posts.ts`](app/manual-posts.ts) で行います。Xの元投稿URLからアカウント名と投稿IDを記入し、実際の投稿日、ジャンル、紹介文、サムネイルURLを登録します。公式プレーヤーでサイト内再生できる投稿は `playback: "embed"`、サイト内で再生できるMP4などを使う場合は `playback: "file"` と `videoUrl` を指定します。
+
+### 自動チェック
+
+依存をインストールしたら、CIと同じ順で確認できます。Playwrightは本番ビルドをポート3100で起動し、ChromiumのPC向けとスマホ向けの設定でテストします。
+
+```sh
+npx playwright install chromium
+npm run lint
+npm run typecheck
+npm run build
+npm run test:e2e
+```
+
+GitHub Actionsの [CI](.github/workflows/ci.yml) はPRと `main`・`develop` へのpushで実行します。ブランチ保護の必須チェックにする場合は、テスト用PRで一度成功させてから **Lint, typecheck, build and E2E** を選びます。依存の更新候補は [Dependabot](.github/dependabot.yml) が週次で確認します。
+
+CIではPostgreSQL 17にマイグレーションを適用し、模擬X APIで更新処理も検証します。ローカルで同じテストを行う場合は、下記の専用DBの手順を使用します。
+
+### Vercel Hobbyでプレビューする
+
+Vercelの **Add New → Project** からGitHubの `akabouzu3/VideoTrend` をインポートし、個人のHobbyチームを選びます。本番ブランチは `main` に設定すると、`develop` や作業ブランチへのpushからプレビューを確認できます。インストールとビルドは [`vercel.json`](vercel.json) を参照します。サンプル版の動作に環境変数は不要です。[VercelのGitHub連携](https://vercel.com/docs/git/vercel-for-github)、[プレビュー対象のブランチ](https://vercel.com/docs/git#preview-branches)
 
 ## 実データ版の構成
 
 ```text
-X API → 定期ジョブ → PostgreSQL → Next.js → ブラウザ → Xの元投稿
+X API → 定期ジョブ → PostgreSQL → Next.js → ブラウザ内のX公式プレーヤー
 ```
 
-1. サーバー側の定期ジョブが、日本語の動画付き公開投稿をX APIから取得します。投稿IDで重複を扱い、集計に必要な指標を保存します。APIキーはサーバー側の環境変数で管理します。
-2. ジョブが24時間・3日間・1週間のランキングを集計します。集計が成功した時点で公開用データを更新し、失敗時は前回のランキングと最終更新時刻を表示します。
-3. Next.jsは集計済みデータをキャッシュして配信します。ランキングの閲覧とX APIの呼び出し頻度が独立するので、アクセスが増えても取得コストを管理できます。
-4. カードからXの元投稿を開けるようにします。削除・非公開になった投稿を検知し、ランキングと配信キャッシュから取り下げられるようにします。
+1. 定期ジョブがX APIで日本語の動画付き公開投稿を取得し、前回掲載した投稿を一括で再確認します。投稿IDで重複を除き、センシティブ指定や閲覧制限のある候補を除外します。検索は既定で1ページです。上限に達して続きがあれば、定期ジョブの応答に `searchHasMore: true` が出ます。
+2. 24時間以内、24時間超〜3日以内、3日超〜1週間以内の枠ごとに上位候補を保持します。3つの表示期間は、最新の集計時刻を基準に重ねて計算します。更新が失敗した場合も前回の集計と時刻を保持し、削除・非公開を確認できた投稿は取り下げます。同時実行はPostgreSQLのロックで防ぎます。
+3. Next.jsは集計の更新ごとにキャッシュキーを切り替えます。ランキング閲覧とキーワード検索はPostgreSQLのデータを使い、X APIは呼び出しません。検索用に保持する本文はサーバー側に置き、公開画面には含めません。
+4. 動画のサムネイルを押すとモーダルが開き、埋め込み再生が許可された動画はX公式プレーヤーで視聴できます。前後ボタンや横スワイプで一覧順に移動できます。サムネイルが取得できない場合は再生アイコンを表示します。元投稿はカードから開けます。取り下げ依頼を受けた投稿は運用者が再掲載も停止できます。
 
 ### ランキングの決め方
 
-初回のAPI検証で、動画の再生数をどの程度取得できるか、検索条件ごとに何件集まるか、どのくらいの費用がかかるかを確認します。再生数を取得できる割合が低ければ、いいねやリポストなどを使った反応ランキングを検討します。公開時には集計の対象期間・指標・最終更新時刻を表示します。動画再生数と投稿の表示回数は別の指標です。[X APIの指標](https://docs.x.com/x-api/fundamentals/metrics)
+実データ版では、取得した候補の**いいね・リポスト・返信・引用の合計**で順位付けします。動画の再生数は初回の検証で取得率を測り、表示回数と区別します。画面には対象期間、集計指標、更新時刻を表示します。[X APIの指標](https://docs.x.com/x-api/fundamentals/metrics)
+
+### DockerでローカルDBを用意する
+
+Docker ComposeでPostgreSQLを起動します。Next.jsはホスト側で動かします。PostgreSQLの既定は17系です。Supabaseに接続する段階でメジャーバージョンを確認し、必要に応じて新しいローカルDBの起動時に `POSTGRES_MAJOR` を指定します。
+
+```sh
+test -f .env.local || cp .env.example .env.local
+docker compose up -d --wait postgres
+npm run db:migrate
+```
+
+通常の画面開発は `RANKING_SOURCE=sample` のまま進められます。以下は模擬データと専用DBを使う統合テストです。初回だけ専用DBを作成します。
+
+```sh
+docker compose exec -T postgres createdb -U videotrend videotrend_test
+test_db=postgresql://videotrend:videotrend@127.0.0.1:54320/videotrend_test
+DATABASE_MIGRATION_URL="$test_db" npm run db:migrate
+TEST_DATABASE_URL="$test_db" npm run test:data
+```
+
+テスト後のデータで実データ用画面を確認するには、`RANKING_SOURCE=x DATABASE_URL="$test_db" npm run dev` を使います。
+
+### X APIを少量で検証する
+
+X Developer Consoleで用途、読み取り権限、単価とクレジット残高を確認し、支出上限を設定します。Bearer Tokenは `.env.local` の `X_BEARER_TOKEN` に設定します。次のコマンドは検索を1回実行し、取得投稿数、動画付き件数、動画の再生数が取得できた件数を表示します。実際の課金件数と金額はDeveloper Consoleで確認します。[X API料金](https://docs.x.com/x-api/getting-started/pricing)
+
+```sh
+npm run x:probe -- --confirm-paid 10
+```
+
+定期ジョブの既定は1回あたり検索20件と再確認最大30件です。投稿読み取りの例では、1日1回を30日間実行して最大1,500件、1件0.005米ドルなら月7.50米ドルです。検索結果に続きがあり、予算に余裕がある場合は `X_SEARCH_PAGES` を2〜3に設定できます。検索で読み取る投稿の上限は、1ページあたりの `X_SEARCH_LIMIT` にページ数を掛けた件数です。追加の読み取り料金、手動再実行、実際の課金単位は別に確認します。
+
+### SupabaseとVercelで実データ版を運用する
+
+1. SupabaseにPostgreSQLを用意し、マイグレーション用の接続先を `DATABASE_MIGRATION_URL` に設定して `npm run db:migrate` を実行します。アプリの `DATABASE_URL` にはサーバーレス向けのトランザクションプーラーを使います。マイグレーションには直接接続かセッションプーラーを使います。テーブルは専用スキーマ `videotrend` に作成されます。[Supabaseの接続方法](https://supabase.com/docs/guides/database/connecting-to-postgres)
+2. VercelのProduction環境に `RANKING_SOURCE=x`、`DATABASE_URL`、`X_BEARER_TOKEN`、`CRON_SECRET` を設定します。`CRON_SECRET` は16文字以上のランダムな値にします。Previewは既定のサンプルモードで動作します。掲載の連絡先は `CONTACT_EMAIL` で設定できます。
+3. [`vercel.json`](vercel.json) の定期ジョブは1日1回、10時台（日本時間）に実行します。Vercel Cronの実行ログでHTTP応答と結果を確認します。手動実行時もAPIを読み取るため、初回や復旧時に実行する前に残り予算を確認します。[Vercel Cronの認証と再試行](https://vercel.com/docs/schedules/cron-jobs/manage-cron-jobs)
+4. Sentryを利用する場合は `SENTRY_DSN` と、ブラウザのエラー用に `NEXT_PUBLIC_SENTRY_DSN` を設定し、Sentryで通知先を登録します。更新失敗はVercelログにも出力されます。画面には最後に成功した集計時刻が表示されます。
+
+手動更新と取り下げは、運用者が対象環境のURLと `CRON_SECRET` を設定して実行します。取り下げは投稿IDを抑止リストに保存し、将来の定期更新からも除外します。
+
+```sh
+curl --fail-with-body -H "Authorization: Bearer $CRON_SECRET" "$SITE_URL/api/cron/rankings"
+curl --fail-with-body -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  "$SITE_URL/api/admin/suppress-post?id=$POST_ID"
+```
 
 ## 採用技術
 
@@ -72,16 +146,24 @@ X API → 定期ジョブ → PostgreSQL → Next.js → ブラウザ → Xの�
 
 各セクションの完了条件を確認してから次に進みます。
 
-現在はセクション1まで完了しています。
+サンプル版、自動チェック、実データ取得・集計・配信、商用公開用の設定を実装しています。外部環境ではGitHub ActionsとVercelプレビューの確認、X APIの有償検証、Supabaseへの接続、試験運用と公開判断を行います。
 
 | セクション | 作業 | 完了条件 |
 | --- | --- | --- |
 | 1. Next.jsの土台 | App Router、TypeScript、Tailwind CSSをセットアップする。開発・lint・型チェック・ビルドのコマンドを用意する。 | ローカルでトップページが開き、lint・型チェック・本番ビルドが通る。 |
 | 2. サンプル版の移植 | 現行の見た目とサンプルを移し、24時間・3日間・1週間、ジャンル・キーワード絞り込み、保存、動画詳細を実装する。 | スマホとPCで主要操作ができ、同じサイトで再読み込みしても保存内容が残る。 |
-| 3. 自動チェックと非商用プレビュー | Playwrightで主要操作を自動化し、GitHub Actionsでlint・型チェック・ビルドとあわせて実行する。Vercel Hobbyでサンプル版を確認する。 | CIが通り、プレビューでサンプル版を操作できる。 |
+| 3. 自動チェックと非商用プレビュー | Playwrightで主要操作を自動化し、GitHub Actionsでlint・型チェック・ビルドとあわせて実行する。Dependabotで依存更新を週次チェックする。Vercel Hobbyでサンプル版を確認する。 | CIが通り、プレビューでサンプル版を操作できる。 |
 | 4. X APIの少量検証 | 予算内で日本語の動画付き投稿を取得し、候補件数、取得可能な指標、課金件数、投稿・画像の表示条件を確認する。 | 取得結果と費用の試算を記録し、ランキングに使う指標と初期の更新頻度を決める。[X API料金](https://docs.x.com/x-api/getting-started/pricing)、[X開発者ポリシー](https://docs.x.com/developer-terms/policy) |
 | 5. 実データの定期更新 | Supabase PostgreSQLとDrizzleを導入し、投稿と集計結果を保存する。Vercel Cronで更新し、失敗通知と削除・非公開投稿の取り下げを実装する。 | 実データを配信でき、再実行で重複しない。更新に失敗したときは前回の正常なランキングが表示され、取り下げがキャッシュにも反映される。 |
 | 6. 商用公開 | 試験運用の結果と月額を確認し、商用公開前にVercelをProへ変更する。DBのプランはバックアップと稼働要件で決める。 | 定期更新が安定し、費用の見通しと投稿の表示ルールを確認したうえで公開できる。広告や有料機能の検証は公開後に進める。[Vercelの利用規約](https://vercel.com/legal/terms)、[X開発者ポリシー](https://docs.x.com/developer-terms/policy) |
+
+### 商用公開前の確認
+
+- [ ] GitHub上でCIが成功し、VercelプレビューでPC・スマホの操作を確認した。
+- [ ] X APIの取得件数・指標・請求額を確認し、予算内の更新頻度を決めた。
+- [ ] Supabaseでマイグレーションとバックアップ方針を確認し、取り下げが公開画面に反映されることを確認した。
+- [ ] 2週間の試験運用で更新成功率・費用・エラー通知を確認した。
+- [ ] VercelをProに切り替え、掲載連絡先を設定し、投稿の表示方法をXの規約で確認した。
 
 ## 月々の運用費
 
