@@ -7,8 +7,54 @@
   --color-muted: #695c69;
   --color-accent: #c9285b;
   --color-blush: #fceaf0;
+  --color-pink: #e74273;
+  --color-line: #ede5ea;
 }
 
-:root {
-  color-scheme: light;
+@layer base {
+  :root {
+    color-scheme: light;
+    font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+    line-height: 1.55;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  :where(button, a, input):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
+  }
+}
+
+@layer components {
+  .content-width {
+    width: min(1160px, calc(100% - 64px));
+    margin-inline: auto;
+
+    @media (width <= 850px) {
+      width: calc(100% - 42px);
+    }
+
+    @media (width <= 600px) {
+      width: calc(100% - 28px);
+    }
+  }
+
+  .sample-thumbnail {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    background: #eedee6 url("/assets/thumbnails.webp") no-repeat;
+    background-size: 300% 300%;
+  }
+
+  .hero-cover {
+    background: linear-gradient(104deg, #fff3f7 4%, #fce9f0 53%, #f9dbe8 100%);
+  }
+
+  .hero-play {
+    background: linear-gradient(145deg, #fa7ca2, #e74376 65%, #d33064);
+    box-shadow: 0 17px 34px #c32b6033, inset 0 1px 3px #fff6;
+  }
 }
