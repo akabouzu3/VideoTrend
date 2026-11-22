@@ -35,7 +35,25 @@ npm ci
 npm run dev
 ```
 
-ローカルでは `.nvmrc`、Vercelでは `package.json` の `engines.node` でNode.js 24系を指定します。GitHub Actionsを導入する際も `.nvmrc` を参照します。
+ローカルとGitHub Actionsは `.nvmrc`、Vercelは `package.json` の `engines.node` でNode.js 24系を指定します。
+
+### 自動チェック
+
+依存をインストールしたら、CIと同じ順で確認できます。Playwrightは本番ビルドをポート3100で起動し、ChromiumのPC向けとスマホ向けの設定でテストします。
+
+```sh
+npx playwright install chromium
+npm run lint
+npm run typecheck
+npm run build
+npm run test:e2e
+```
+
+GitHub Actionsの [CI](.github/workflows/ci.yml) はPRと `main`・`develop` へのpushで実行します。ブランチ保護の必須チェックにする場合は、テスト用PRで一度成功させてから **Lint, typecheck, build and E2E** を選びます。依存の更新候補は [Dependabot](.github/dependabot.yml) が週次で確認します。
+
+### Vercel Hobbyでプレビューする
+
+Vercelの **Add New → Project** からGitHubの `akabouzu3/VideoTrend` をインポートし、個人のHobbyチームを選びます。本番ブランチは `main` に設定すると、`develop` や作業ブランチへのpushからプレビューを確認できます。インストールとビルドは [`vercel.json`](vercel.json) を参照します。サンプル版の動作に環境変数は不要です。[VercelのGitHub連携](https://vercel.com/docs/git/vercel-for-github)、[プレビュー対象のブランチ](https://vercel.com/docs/git#preview-branches)
 
 ## 実データ版の構成
 
@@ -72,13 +90,13 @@ X API → 定期ジョブ → PostgreSQL → Next.js → ブラウザ → Xの�
 
 各セクションの完了条件を確認してから次に進みます。
 
-現在はセクション2まで完了しています。
+セクション2まで完了しています。セクション3はCIとプレビュー用の設定を追加済みで、GitHub Actionsでの実行とVercelプレビューの確認が残っています。
 
 | セクション | 作業 | 完了条件 |
 | --- | --- | --- |
 | 1. Next.jsの土台 | App Router、TypeScript、Tailwind CSSをセットアップする。開発・lint・型チェック・ビルドのコマンドを用意する。 | ローカルでトップページが開き、lint・型チェック・本番ビルドが通る。 |
 | 2. サンプル版の移植 | 現行の見た目とサンプルを移し、24時間・3日間・1週間、ジャンル・キーワード絞り込み、保存、動画詳細を実装する。 | スマホとPCで主要操作ができ、同じサイトで再読み込みしても保存内容が残る。 |
-| 3. 自動チェックと非商用プレビュー | Playwrightで主要操作を自動化し、GitHub Actionsでlint・型チェック・ビルドとあわせて実行する。Vercel Hobbyでサンプル版を確認する。 | CIが通り、プレビューでサンプル版を操作できる。 |
+| 3. 自動チェックと非商用プレビュー | Playwrightで主要操作を自動化し、GitHub Actionsでlint・型チェック・ビルドとあわせて実行する。Dependabotで依存更新を週次チェックする。Vercel Hobbyでサンプル版を確認する。 | CIが通り、プレビューでサンプル版を操作できる。 |
 | 4. X APIの少量検証 | 予算内で日本語の動画付き投稿を取得し、候補件数、取得可能な指標、課金件数、投稿・画像の表示条件を確認する。 | 取得結果と費用の試算を記録し、ランキングに使う指標と初期の更新頻度を決める。[X API料金](https://docs.x.com/x-api/getting-started/pricing)、[X開発者ポリシー](https://docs.x.com/developer-terms/policy) |
 | 5. 実データの定期更新 | Supabase PostgreSQLとDrizzleを導入し、投稿と集計結果を保存する。Vercel Cronで更新し、失敗通知と削除・非公開投稿の取り下げを実装する。 | 実データを配信でき、再実行で重複しない。更新に失敗したときは前回の正常なランキングが表示され、取り下げがキャッシュにも反映される。 |
 | 6. 商用公開 | 試験運用の結果と月額を確認し、商用公開前にVercelをProへ変更する。DBのプランはバックアップと稼働要件で決める。 | 定期更新が安定し、費用の見通しと投稿の表示ルールを確認したうえで公開できる。広告や有料機能の検証は公開後に進める。[Vercelの利用規約](https://vercel.com/legal/terms)、[X開発者ポリシー](https://docs.x.com/developer-terms/policy) |

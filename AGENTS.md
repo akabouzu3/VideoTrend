@@ -12,7 +12,7 @@
 ## 変更後の確認
 
 - 静的試作のJavaScriptを変更したら `node --check dist/app.js` を実行する。画面を変更したら、READMEの手順で起動し、変更に関係する操作をブラウザで確認する。
-- Next.js版を変更したら `npm run lint`、`npm run typecheck`、`npm run build` のうち、変更に関係する確認を実行する。GitHub ActionsとPlaywrightの導入手順はREADMEのセクション3を参照する。
+- Next.js版を変更したら `npm run lint`、`npm run typecheck`、`npm run build` のうち、変更に関係する確認を実行する。主要な画面操作を変更したら、ビルド後に `npm run test:e2e` を実行する。ローカルでのブラウザ準備はREADMEの自動チェック手順を参照する。
 - 画面の確認では、期間切り替え、ジャンル・キーワードでの絞り込み、保存した動画が再読み込み後も表示されることを優先する。
 - 作業結果には、実行した確認と結果を記す。確認できなかった項目があれば理由も記す。
 
