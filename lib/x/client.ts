@@ -20,6 +20,7 @@ const post = z.object({
 const media = z.object({
   media_key: z.string(),
   type: z.string(),
+  preview_image_url: z.string().optional(),
   duration_ms: z.int().nonnegative().max(2_147_483_647).optional(),
   public_metrics: z.object({ view_count: z.int().nonnegative().optional() }).optional(),
 });
@@ -31,7 +32,10 @@ const apiResponse = z.object({
     resource_id: z.string().optional(),
     value: z.string().optional(),
   })).default([]),
-  meta: z.object({ result_count: z.int().nonnegative() }).optional(),
+  meta: z.object({
+    result_count: z.int().nonnegative(),
+    next_token: z.string().min(1).optional(),
+  }).optional(),
 });
 
 export type XPost = z.infer<typeof post>;
@@ -42,7 +46,7 @@ export type XClient = ReturnType<typeof createXClient>;
 const fields = {
   "tweet.fields": "created_at,public_metrics,possibly_sensitive,withheld,attachments",
   expansions: "attachments.media_keys",
-  "media.fields": "type,duration_ms,public_metrics",
+  "media.fields": "type,duration_ms,preview_image_url,public_metrics",
 };
 const query = `(${rankingCategories.map(categoryQuery).join(" OR ")}) lang:ja has:videos -is:retweet -is:reply`;
 const unavailableTypes = new Set(["resource-not-found", "not-authorized-for-resource", "resource-unauthorized"]);
@@ -71,17 +75,33 @@ export function createXClient(token: string, fetcher: typeof fetch = fetch) {
   }
 
   return {
-    async search(limit: number, start: Date): Promise<XBatch> {
-      const result = await get("/2/tweets/search/recent", {
-        query,
-        max_results: String(limit),
-        start_time: start.toISOString().replace(/\.\d{3}Z$/, "Z"),
-        sort_order: "recency",
-      });
-      if (result.errors.length || result.data.length !== result.meta?.result_count || result.data.length > limit) {
-        throw new Error("Incomplete X search response");
+    async search(limit: number, start: Date, maxPages = 1): Promise<XBatch & { hasMore: boolean }> {
+      const posts = new Map<string, XPost>();
+      const media = new Map<string, XMedia>();
+      const seenTokens = new Set<string>();
+      let nextToken: string | undefined;
+
+      for (let page = 0; page < maxPages; page++) {
+        const result = await get("/2/tweets/search/recent", {
+          query,
+          max_results: String(limit),
+          start_time: start.toISOString().replace(/\.\d{3}Z$/, "Z"),
+          sort_order: "recency",
+          ...(nextToken ? { next_token: nextToken } : {}),
+        });
+        if (result.errors.length || result.data.length !== result.meta?.result_count || result.data.length > limit) {
+          throw new Error("Incomplete X search response");
+        }
+        for (const post of result.data) posts.set(post.id, post);
+        for (const item of result.includes?.media ?? []) media.set(item.media_key, item);
+
+        nextToken = result.meta?.next_token;
+        if (!nextToken) break;
+        if (seenTokens.has(nextToken)) throw new Error("Repeated X search pagination token");
+        seenTokens.add(nextToken);
       }
-      return batch(result);
+
+      return { posts: [...posts.values()], media, hasMore: Boolean(nextToken) };
     },
     async lookup(ids: string[]): Promise<XBatch> {
       if (!ids.length) return { posts: [], media: new Map() };

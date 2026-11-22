@@ -1,6 +1,4 @@
 import Image from "next/image";
-import { postUrl } from "../lib/ranking-model";
-import type { ManualVideo } from "./manual-posts";
 import { categories, score, type Video } from "./video-data";
 import { Icon, XPostLink } from "./video-ui";
 
@@ -29,46 +27,6 @@ export function videoArtwork(video: Video) {
     : { className: "sample-thumbnail relative block", style: { backgroundPosition: thumbnailPosition(video.tile) } };
 }
 
-export function ManualVideoPreview({ video, onOpen }: { video: ManualVideo; onOpen?: () => void }) {
-  const className = "group relative grid aspect-video w-full place-items-center overflow-hidden bg-blush focus-visible:outline-offset-[-5px]";
-  const thumbnail = (
-    <>
-      <Image
-        src={video.thumbnailUrl}
-        alt=""
-        fill
-        unoptimized
-        className="object-cover"
-        onError={(event) => { event.currentTarget.style.visibility = "hidden"; }}
-      />
-      <span className="relative grid size-12 place-items-center rounded-full bg-black/65 text-white motion-safe:transition-colors group-hover:bg-black/85">
-        <Icon name="triangle" className="size-7 translate-x-px" />
-      </span>
-    </>
-  );
-
-  if (video.playback === "x") {
-    return (
-      <a
-        href={postUrl(video.id, video.account)}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`${video.title}をXで再生`}
-        className={className}
-      >
-        {thumbnail}
-        <span className="absolute right-2 bottom-2 rounded-md bg-black/75 px-2 py-1 text-xs font-bold text-white">Xで再生</span>
-      </a>
-    );
-  }
-
-  return (
-    <button type="button" aria-label={`${video.title}を再生`} className={className} onClick={onOpen}>
-      {thumbnail}
-    </button>
-  );
-}
-
 export function VideoCard({ video, rank, saved, onOpen, onSave }: {
   video: Video;
   rank?: number;
@@ -80,6 +38,8 @@ export function VideoCard({ video, rank, saved, onOpen, onSave }: {
   const posted = video.hours < 1 ? "1時間以内"
     : video.hours < 24 ? `${Math.floor(video.hours)}時間前` : `${Math.floor(video.hours / 24)}日前`;
   const artwork = videoArtwork(video);
+  const hasPlayer = video.kind === "x" || video.kind === "manual";
+  const thumbnail = hasPlayer ? video.thumbnailUrl : null;
   const saveButton = (
     <button
       id={`bookmark-${video.id}`}
@@ -98,32 +58,43 @@ export function VideoCard({ video, rank, saved, onOpen, onSave }: {
 
   return (
     <article className="min-w-0 overflow-hidden rounded-2xl border border-line bg-white hover:shadow-md motion-safe:transition-shadow max-[600px]:rounded-xl">
-      {video.kind === "manual" ? (
-        <ManualVideoPreview video={video} onOpen={onOpen} />
-      ) : (
-        <div className="relative">
-          <button
-            type="button"
-            className={`${artwork.className} focus-visible:outline-offset-[-5px]`}
-            style={artwork.style}
-            aria-label={`${video.title}の詳細を見る`}
-            onClick={onOpen}
-          >
-            {rank !== undefined && (
-              <span className={`${pictureBadge} top-2.5 left-2.5 max-[600px]:top-1.5 max-[600px]:left-1.5 ${rankColors[rank] ?? "bg-[#291c27d9]"}`}>
-                #{rank}
-              </span>
-            )}
-            {video.kind === "x" && <Icon name="triangle" className="size-12" />}
-            {video.duration !== null && (
-              <span className={`${pictureBadge} right-[9px] bottom-[9px] bg-[#291c27d9] tabular-nums max-[600px]:right-1.5 max-[600px]:bottom-1.5`}>
-                {video.duration}
-              </span>
-            )}
-          </button>
-          {saveButton}
-        </div>
-      )}
+      <div className="relative">
+        <button
+          type="button"
+          className={`${artwork.className} group overflow-hidden focus-visible:outline-offset-[-5px]`}
+          style={artwork.style}
+          aria-label={`${video.title}${hasPlayer ? "を再生" : "の詳細を見る"}`}
+          onClick={onOpen}
+        >
+          {thumbnail && (
+            <Image
+              key={thumbnail}
+              src={thumbnail}
+              alt=""
+              fill
+              unoptimized
+              className="object-cover"
+              onError={(event) => { event.currentTarget.style.visibility = "hidden"; }}
+            />
+          )}
+          {rank !== undefined && video.kind !== "manual" && (
+            <span className={`${pictureBadge} top-2.5 left-2.5 max-[600px]:top-1.5 max-[600px]:left-1.5 ${rankColors[rank] ?? "bg-[#291c27d9]"}`}>
+              #{rank}
+            </span>
+          )}
+          {hasPlayer && (
+            <span className="relative grid size-12 place-items-center rounded-full bg-black/65 text-white motion-safe:transition-colors group-hover:bg-black/85">
+              <Icon name="triangle" className="size-7 translate-x-px" />
+            </span>
+          )}
+          {video.duration !== null && (
+            <span className={`${pictureBadge} right-[9px] bottom-[9px] bg-[#291c27d9] tabular-nums max-[600px]:right-1.5 max-[600px]:bottom-1.5`}>
+              {video.duration}
+            </span>
+          )}
+        </button>
+        {video.kind !== "manual" && saveButton}
+      </div>
       <div className="px-3.5 pt-[13px] pb-3.5 max-[600px]:p-[9px]">
         {video.kind === "manual" ? (
           <div className="flex items-center justify-between gap-2">
@@ -152,8 +123,8 @@ export function VideoCard({ video, rank, saved, onOpen, onSave }: {
             </>
           )}
         </p>
-        {video.kind === "manual" && (
-          <div className="mt-3"><XPostLink id={video.id} account={video.account} /></div>
+        {hasPlayer && (
+          <div className="mt-3"><XPostLink id={video.id} account={video.kind === "manual" ? video.account : undefined} /></div>
         )}
       </div>
     </article>

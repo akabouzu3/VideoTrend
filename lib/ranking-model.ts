@@ -22,6 +22,7 @@ export type LiveVideo = {
   createdAt: string;
   count: number;
   durationMs: number | null;
+  thumbnailUrl: string | null;
 };
 
 export type LiveRanking = {

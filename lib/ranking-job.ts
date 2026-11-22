@@ -17,12 +17,14 @@ function rankingPost(post: XBatch["posts"][number], batch: XBatch): RankingPost 
   const category = rankingCategories.find((key) => categories[key].terms.some((term) => text.includes(term)));
   if (!category) return null;
   const metrics = post.public_metrics;
+  const preview = media.preview_image_url;
   return {
     id: post.id,
     category,
     createdAt: new Date(post.created_at),
     count: metrics.like_count + metrics.retweet_count + metrics.reply_count + metrics.quote_count,
     durationMs: media.duration_ms ?? null,
+    thumbnailUrl: preview?.startsWith("https://pbs.twimg.com/") ? preview : null,
     searchText: `${text} ${categories[category].label}`,
   };
 }
@@ -43,7 +45,7 @@ function selectPosts(posts: Iterable<RankingPost>, now: Date, perWindow: number)
 
 export async function refreshRankings(
   client: XClient,
-  settings: { searchLimit: number; trackedPerWindow: number },
+  settings: { searchLimit: number; searchPages: number; trackedPerWindow: number },
   now = new Date(),
 ) {
   return getDatabase().transaction(async (tx) => {
@@ -55,7 +57,7 @@ export async function refreshRankings(
     const existing = await tx.select({ id: rankingPosts.id }).from(rankingPosts);
     const [lookup, search] = await Promise.allSettled([
       client.lookup(existing.map(({ id }) => id)),
-      client.search(settings.searchLimit, recentStart(now, previous.updatedAt)),
+      client.search(settings.searchLimit, recentStart(now, previous.updatedAt), settings.searchPages),
     ]);
     const verified = new Map<string, RankingPost>();
     if (lookup.status === "fulfilled") {
@@ -97,7 +99,7 @@ export async function refreshRankings(
     await tx.update(rankingState).set({
       revision: randomUUID(), updatedAt: now, lastAttemptAt: now,
     }).where(eq(rankingState.id, stateId));
-    return { status: "updated" as const, published: next.length };
+    return { status: "updated" as const, published: next.length, searchHasMore: search.value.hasMore };
   });
 }
 

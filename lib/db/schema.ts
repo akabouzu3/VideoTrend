@@ -11,6 +11,7 @@ export const rankingPosts = appSchema.table("ranking_posts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   count: bigint("reaction_count", { mode: "number" }).notNull(),
   durationMs: integer("duration_ms"),
+  thumbnailUrl: text("thumbnail_url"),
   searchText: text("search_text").notNull(),
 });
 

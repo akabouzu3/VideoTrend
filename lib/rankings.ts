@@ -16,6 +16,7 @@ const getPublishedRanking = unstable_cache(async (revision: string): Promise<Liv
       createdAt: rankingPosts.createdAt,
       count: rankingPosts.count,
       durationMs: rankingPosts.durationMs,
+      thumbnailUrl: rankingPosts.thumbnailUrl,
     },
   }).from(rankingState)
     .leftJoin(rankingPosts, sql`true`)

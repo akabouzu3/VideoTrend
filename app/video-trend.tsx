@@ -59,7 +59,7 @@ export function VideoTrend({ live, manual, unavailable = false }: {
         return score(b) - score(a) || a.hours - b.hours || b.id.localeCompare(a.id);
       });
   const results = filterVideos(source, category, query, liveSearch.matched);
-  const selectedIndex = selected?.kind === "manual"
+  const selectedIndex = selected?.kind === "manual" || selected?.kind === "x"
     ? results.findIndex(({ video }) => video.id === selected.id)
     : -1;
   const archived = (live || manual) && savedView && category === "all" && !normalizeSearch(query)

@@ -17,6 +17,7 @@ async function probe() {
   console.log(JSON.stringify({
     requestedPostLimit: limit,
     returnedPosts: batch.posts.length,
+    searchHasMore: batch.hasMore,
     postsWithVideo: media.length,
     videosWithViewCount: media.filter((item) => item.public_metrics?.view_count !== undefined).length,
   }, null, 2));
