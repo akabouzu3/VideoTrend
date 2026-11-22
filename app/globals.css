@@ -1,0 +1,14 @@
+@import "tailwindcss" source(none);
+@source "./";
+
+@theme {
+  --color-canvas: #fdfbfc;
+  --color-ink: #231b25;
+  --color-muted: #695c69;
+  --color-accent: #c9285b;
+  --color-blush: #fceaf0;
+}
+
+:root {
+  color-scheme: light;
+}
