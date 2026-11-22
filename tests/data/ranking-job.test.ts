@@ -86,6 +86,13 @@ test("refreshes and preserves rankings atomically across retries and removals", 
     assert.equal((await db.select().from(rankingPosts)).length, 2);
     assert.equal((await db.select().from(rankingState))[0].revision, first.revision);
 
+    const missingMedia = await refreshRankings(fakeX((request) => request.pathname === "/2/tweets"
+      ? Response.json({ data: [old, kept] })
+      : fixtureBatch([])), settings, new Date(now.getTime() + 1_250));
+    assert.equal(missingMedia.status, "failed");
+    assert.deepEqual((await db.select().from(rankingPosts)).map(({ id }) => id).sort(), [deletedId, keptId]);
+    assert.equal((await db.select().from(rankingState))[0].revision, first.revision);
+
     const laterPageFailed = await refreshRankings(fakeX((request) => {
       if (request.pathname === "/2/tweets") return fixtureBatch([old, kept]);
       if (request.searchParams.has("next_token")) return new Response(null, { status: 503 });

@@ -68,10 +68,13 @@ export function createXClient(token: string, fetcher: typeof fetch = fetch) {
   }
 
   function batch(result: z.infer<typeof apiResponse>): XBatch {
-    return {
-      posts: result.data,
-      media: new Map(result.includes?.media.map((item) => [item.media_key, item])),
-    };
+    const media = new Map(result.includes?.media.map((item) => [item.media_key, item]));
+    const missingMedia = result.data.some((post) =>
+      !post.possibly_sensitive && !post.withheld &&
+      post.attachments?.media_keys?.some((key) => !media.has(key)),
+    );
+    if (missingMedia) throw new Error("Incomplete X media response");
+    return { posts: result.data, media };
   }
 
   return {
@@ -92,8 +95,9 @@ export function createXClient(token: string, fetcher: typeof fetch = fetch) {
         if (result.errors.length || result.data.length !== result.meta?.result_count || result.data.length > limit) {
           throw new Error("Incomplete X search response");
         }
-        for (const post of result.data) posts.set(post.id, post);
-        for (const item of result.includes?.media ?? []) media.set(item.media_key, item);
+        const batchPage = batch(result);
+        for (const post of batchPage.posts) posts.set(post.id, post);
+        for (const [key, item] of batchPage.media) media.set(key, item);
 
         nextToken = result.meta?.next_token;
         if (!nextToken) break;
