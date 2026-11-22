@@ -1,0 +1,1 @@
+ALTER TABLE "videotrend"."ranking_posts" ADD COLUMN "thumbnail_url" text;

@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:${POSTGRES_MAJOR:-17}
+    environment:
+      POSTGRES_USER: videotrend
+      POSTGRES_PASSWORD: videotrend
+      POSTGRES_DB: videotrend
+    ports:
+      - "127.0.0.1:54320:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U videotrend -d videotrend"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
